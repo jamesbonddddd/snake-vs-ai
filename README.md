@@ -6,6 +6,11 @@ preview, via API): we wrote the spec as a prompt, the model wrote the function, 
 in a headless harness — 5 seeded games, **118.8 food average, zero deaths** (alive at the 3,000-move
 cap on every game). No model runs in the page; the page ships the model-generated code.
 
+**Full paper trail in [`qwen4-generation/`](qwen4-generation/)** — the exact prompt (`PROMPT.md`),
+the model's raw one-shot output with usage stats and a SHA-256 (`RESPONSE.md`, `generated-brain.js`),
+and the verification harness anyone can re-run (`verify.js`, `RESULTS.md`): at an equal 2,000-move
+cap the generated brain averaged **87.8 vs 86.0** for our hand-written version — zero deaths in every run.
+
 **Board: 30×30** (900 cells). Each board spawns its own food — play at your own pace.
 Death is per-player: a dead snake stays dead (its board grays out) and the survivor keeps playing;
 once both are dead, any arrow key / WASD starts a new game. Session-best scores persist per side.
