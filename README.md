@@ -1,0 +1,87 @@
+# 🐍 Snake vs Expert Pathfinder
+
+Play snake against an expert pathfinding AI — right in the browser, no server, no dependencies.
+
+**Board: 30×30** (900 cells). Each board spawns its own food — play at your own pace.
+Death is per-player: a dead snake stays dead (its board grays out) and the survivor keeps playing;
+once both are dead, any arrow key / WASD starts a new game. Session-best scores persist per side.
+**WASD pads** under each board light up with every move — yours from your keypresses, the AI's
+with each decision it makes (you can literally watch it steer).
+
+**The AI:** a BFS pathfinder with self-trap safety and a stall gamble — shortest safe route to food,
+tail-chasing when boxed in, a calculated risk if it stalls. On this board it averages 86+ food and
+never died in evaluation (it hit the 2,000-move cap alive on all seeds).
+
+## The result
+
+| Player | What it is | Avg score / game* |
+|---|---|---|
+| Expert (default, ships) | BFS pathfinder + self-trap safety + stall gamble | 86.0 — hit the 2,000-move cap alive on all 5 seeds |
+| Teacher v3 (never ships) | rule-based reflex expert, 12 sensor bits | 33.8 — games (34, 67, 9, 26, 33) |
+| **Student (ships, toggle)** | **12,292-byte int8 policy table** (12,288 prefs, 4,096 sensor buckets × 3 relative actions) | **20.2** — 99.3% decision agreement on unseen states; identical trajectories on 2 of 5 seeds |
+
+\* 5 seeded rollouts on the 30×30 board, e.g. teacher (34, 67, 9, 26, 33) → student (22, 38, 9, 26, 6).
+
+## How the transfer works (no backprop)
+
+1. **Sensors (12 bits):** immediate danger (S/L/R) × next-cell freedom (3 bits, one-step lookahead)
+   × food bearing (8 heading-relative sectors) × tail bearing (4 quadrants) × grown (length ≥ 45 on the 30×30
+   board, area-scaled). → 4,096 buckets.
+2. **Teacher v3:** a hand-written reflex expert whose decision is a *pure function of those 12 bits* —
+   greedy for food while small; when grown, chase the tail (the tail always moves) and eat only when the
+   food cell is open. That tail-chase is what eliminated the stalls and late-game self-traps.
+3. **Distillation:** the teacher plays ~250k states; a cross-entropy-method (evolutionary) optimizer fits
+   12,288 int8 action preferences to imitate it. No gradients anywhere.
+4. **Ship:** int8 quantize → base64 → embedded in `index.html`. The learned artifact is the 12,292
+   bytes; the expert pathfinder also ships, clearly labeled, as a comparison brain ("which one beat you?").
+
+Design notes: (1) distilling the BFS oracle directly capped at ~53–70% imitation — its decisions depend on
+whole-board path structure small sensors can't see, and a snake imitating 70% of moves dies within ~30.
+Making the *teacher* sensor-pure is what lets the student reach 98%+. (2) Teacher v1/v2 stalled once grown —
+the debug trace showed it orbiting food without closing in (diagonal bearings prefer a *tangent* straight move)
+and never leaving tail-chase to fetch side-sector food. v3 turns into the target and eats opportunistically.
+
+## The distillation experiment (documented in `trainer.js`, not shipped in the page)
+
+We also distilled a rule-based reflex teacher into a 12,292-byte int8 policy table via a
+cross-entropy-method optimizer (zero backpropagation) — 99.3% decision agreement on unseen states,
+~20 food average on this board. The table and its story live in `trainer.js` / `weights.json`;
+the shipped page plays the full pathfinder for the strongest opponent.
+
+| Player | What it is | Avg score / game* |
+|---|---|---|
+| **Expert (ships)** | BFS pathfinder + self-trap safety + stall gamble | 86.0 — never died, hit the move cap alive on all 5 seeds |
+| Teacher v3 (trainer only) | rule-based reflex expert, 12 sensor bits | 33.8 |
+| Student table (trainer only) | 12,292-byte int8 policy table | 20.2 |
+
+\* 5 seeded rollouts on 30×30.
+
+## Roadmap
+
+- [x] Canvas Snake game + versus UI (independent food, per-player death, session bests, any-key restart)
+- [x] Expert pathfinder AI (default and only brain on the page)
+- [x] WASD input displays for both players
+- [x] Skill-transfer experiment: CEM distillation → 12KB table (kept in trainer.js as documented work)
+- [ ] Qwen pass: have the invite-test model write/refine the optimizer + verify (the content narrative)
+- [ ] Writeup + publish as a static GitHub Pages site
+
+## Run it
+
+Open `index.html` directly (double-click), or:
+
+```bash
+cd snake-demo
+python3 -m http.server 8765   # → http://127.0.0.1:8765
+```
+
+Re-run the distillation experiment (≈60 s):
+
+```bash
+node trainer.js               # prints oracle/teacher/student rollouts, writes weights.json
+```
+
+## Notes & guardrails
+
+- Everything runs client-side — no server, no API calls, and **no API key ever ships in this site**.
+- Before publishing anything that names the invite-test model or shows its outputs, get content
+  approval from the Qwen contact (pending — bundled with the OI-01…04 follow-up).
