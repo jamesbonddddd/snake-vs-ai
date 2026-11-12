@@ -303,7 +303,7 @@ class Board {
 
 // measure the shipped AI brain: exact UTF-8 bytes of the Qwen4-generated function
 const BRAIN_BYTES = new TextEncoder().encode(expertMove.toString()).length;
-document.getElementById('brainSize').textContent = BRAIN_BYTES.toLocaleString() + ' B';
+document.getElementById('brainSize').textContent = (BRAIN_BYTES / 1024).toFixed(1) + ' KB';
 document.getElementById('footBrain').textContent = BRAIN_BYTES.toLocaleString() + ' bytes';
 
 const boardYou = new Board(makeCtx('cvYou'), 'you');
